@@ -1,5 +1,5 @@
 package sha512_pkg;
-
+ 
     // Standard SHA-512 Word Type
     typedef logic [63:0] word_t;
 
@@ -42,11 +42,11 @@ package sha512_pkg;
     };
 
     // Helper Functions ROTR and SHR
-    function automatic word_t rotr(word_t value, int amt);
+    function automatic word_t rotr(input word_t value,input int amt);
         return (value >> amt) | (value << (64 - amt));
     endfunction
 
-    function automatic word_t shr(word_t value, int amt);
+    function automatic word_t shr(input word_t value, input int amt);
         return (value >> amt);
     endfunction
 

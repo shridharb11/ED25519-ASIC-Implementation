@@ -26,13 +26,19 @@ module sha512_msg_sched (
         w_next = stage2.sum + {stage2.carry[62:0], 1'b0};
     end
 
-    always_ff @(posedge clk or negedge rst_n) begin // receive 32 bits at both clock edges to get one complete word in one cycle
-        if (!rst_n) for (int i=0; i<16; i++) w[i] <= 64'h0;
-        else if (wr_low_i)  w[wr_idx_i][31:0]  <= wr_data_i;
-        else if (wr_high_i) w[wr_idx_i][63:32] <= wr_data_i;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin for (int i=0; i<16; i++) w[i] <= 64'h0; end
+        else if (wr_low_i) begin
+            // Byte swap the lower 32 bits
+            w[wr_idx_i][31:0] <= {wr_data_i[7:0], wr_data_i[15:8], wr_data_i[23:16], wr_data_i[31:24]};
+        end
+        else if (wr_high_i) begin
+            // Byte swap the upper 32 bits
+            w[wr_idx_i][63:32] <= {wr_data_i[7:0],  wr_data_i[15:8],  wr_data_i[23:16],  wr_data_i[31:24]};
+        end
         else if (en) begin
-            for (int i=0; i<15; i++) w[i] <= w[i+1]; // shift the array left by 1
-            w[15] <= w_next; // w[15] is newest computed word
+            for (int i=0; i<15; i++) w[i] <= w[i+1];
+            w[15] <= w_next; 
         end
     end
 
