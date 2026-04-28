@@ -54,8 +54,8 @@ module tb_barrett;
         #1;
 
         // 2. BACKDOOR MEMORY LOAD
-        dut.u_regs.mem[8]  = 256'h23b8c1e9392456de3eb13b9046685257bdd640fb06671ad11c80317fa3b1799d; // H_lo
-        dut.u_regs.mem[9]  = 256'h972a846916419f828b9d2434e465e150bd9c66b3ad3c2d6d1a3d1fa7bc8960a9; // H_hi
+        dut.u_regs.mem[8]  = 256'hff0e88ea09f81e6f1997b85154842b4d4f4cea72e493c4152a4bf5dc0a599c13; // H_lo
+        dut.u_regs.mem[9]  = 256'hec2c4f79d24938d2000df7649d46ea9a0a1d9238fcf9abbb15149d1a95368ae6; // H_hi
         dut.u_regs.mem[10] = 256'h000000000000000000000000000000000000000000000000000000000000000f; // mu_hi
         dut.u_regs.mem[11] = 256'h1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed; // q
         dut.u_regs.mem[12] = 256'hffffffffffffffffffffffffffffffeb2106215d086329a7ed9ce5a30a2c131b; // mu_lo

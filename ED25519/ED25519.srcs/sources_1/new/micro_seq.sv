@@ -6,7 +6,9 @@ module micro_sequencer (
     output logic        reg_we, seq_done, math_error,
     output logic [2:0]  alu_op,
     output logic        sel_hi,
-    output logic        mult_kick
+    output logic        mult_kick,
+    output logic        mod_p_en,
+    output logic [1:0]  data_sel
 );
     // --- ALU Opcodes ---
     localparam OP_ADD     = 3'b000;
@@ -32,9 +34,7 @@ module micro_sequencer (
     assign seq_done   = seq_done_reg;
     assign math_error = math_error_reg;
 
-    // =========================================================================
-    // 1. THE BRAIN (Strictly Flip-Flops)
-    // =========================================================================
+    
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             step_counter   <= 0;
@@ -91,11 +91,10 @@ module micro_sequencer (
         end
     end
 
-    // =========================================================================
-    // 2. THE INSTRUCTION BOOK (Pure Combinational ROM)
-    // =========================================================================
+    
     // Notice: sub_step is NO LONGER in this block. No combinational loops!
-    logic [2:0] rom_alu_op; // Add this temporary wire
+    logic [2:0] rom_alu_op;
+    logic [1:0] rom_data_sel;
 
     always_comb begin
         // Defaults to prevent latches
@@ -103,6 +102,8 @@ module micro_sequencer (
         rom_alu_op = OP_PASS; // Drive the temporary wire
         rom_is_last_step = 1'b0;
         rom_panic        = 1'b0;
+        mod_p_en         = 1'b0;
+        rom_data_sel     = 2'b00;
         
         if (seq_id == 3'b001) begin // BARRETT SEQUENCE
             case (step_counter)
@@ -134,5 +135,6 @@ module micro_sequencer (
     // During S_WRITE or S_IDLE, force it to OP_PASS to reset the edge detector.
     assign alu_op = rom_alu_op;
     assign mult_kick = (sub_step == S_WAIT_DROP);
+    assign data_sel = rom_data_sel;
 
 endmodule

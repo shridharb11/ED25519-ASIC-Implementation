@@ -6,6 +6,7 @@ module alu_top (
     input  logic [2:0]   alu_op,
     input  logic         sel_hi,
     input  logic         mult_kick,
+    input  logic         mod_p_en,
     
     output logic [255:0] alu_result,
     output logic         cmp_flag,
@@ -22,6 +23,7 @@ module alu_top (
         .mult_product (mult_product),
         .alu_op       (alu_op),
         .sel_hi       (sel_hi),
+        .mod_p_en     (mod_p_en),
         .alu_result   (alu_result),
         .cmp_flag     (cmp_flag)
     );

@@ -4,53 +4,91 @@ module alu (
     input  logic [511:0] mult_product, // From the Booth block
     input  logic [2:0]   alu_op,
     input  logic         sel_hi,
+    input  logic         mod_p_en,     // NEW: Modulo P Engine Enable
     
     output logic [255:0] alu_result,
     output logic         cmp_flag,
     output logic         mult_start
 );
 
-    // Internal flags
+    // Ed25519 Prime: p = 2^255 - 19
+    localparam logic [255:0] PRIME_P = 
+        256'h7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFED;
+
+    // Derived Constant for Two's Complement Subtraction Fix
+    // TWO_256_MINUS_P = 2^256 - p = 2^255 + 19
+    localparam logic [255:0] TWO_256_MINUS_P = 
+        256'h8000000000000000000000000000000000000000000000000000000000000013;
+
+    // Internal flags & wires
     logic [256:0] sum_full;
-    logic isolated_cmp_flag;
+    logic [256:0] sub_full;
+    logic         isolated_cmp_flag;
+    logic [255:0] mod_mult_result; 
+    logic [511:0] pm_input; // Power gating wire
+    logic         carry;    // Extracted carry bit for comparator optimization
+    
     assign isolated_cmp_flag = (src_a >= src_b);
+    assign carry = sum_full[256];
+
+    // --- POWER GATING: The Pseudo Mersenne Reducer ---
+    // Only toggle the massive combinatorial tree if we are actually doing a Mod-P Multiply
+    assign pm_input = (mod_p_en && (alu_op == 3'b010)) ? mult_product : '0;
+
+    pseudo_mersenne u_pm_reducer (
+        .data_in  (pm_input),
+        .data_out (mod_mult_result)
+    );
 
     typedef enum logic [2:0] { 
         OP_ADD     = 3'b000, 
-        OP_SUB_CND = 3'b001, // Conditional (A - B if A >= B)
+        OP_SUB_CND = 3'b001, 
         OP_MULT    = 3'b010, 
         OP_CMP     = 3'b011, 
         OP_PASS    = 3'b100,
-        OP_SUB_RAW = 3'b101  // NEW: Unconditional wrap-around
+        OP_SUB_RAW = 3'b101  
     } alu_op_t;
 
-        
-    
     always_comb begin
-        // Default values
         alu_result = 256'd0;
         sum_full   = 257'd0;
+        sub_full   = 257'd0;
         cmp_flag   = 1'b0;
         mult_start = 1'b0;
         
         case (alu_op)
             OP_ADD: begin 
-                alu_result = src_a + src_b;
+                sum_full = {1'b0, src_a} + {1'b0, src_b};
+                if (mod_p_en) begin                 
+                    alu_result = (carry || sum_full[255:0] >= PRIME_P) ? 
+                                 (sum_full[255:0] - PRIME_P) : sum_full[255:0];
+                end else begin
+                    // Standard Wrap-around Addition (For Barrett)
+                    alu_result = sum_full[255:0];
+                end
             end
             
             OP_SUB_CND: begin 
+                // NOTE: mod_p_en has no effect here. A conditional subtraction by p 
+                // is exactly what field arithmetic reduction requires anyway.
                 cmp_flag   = isolated_cmp_flag;
-                // Lint-safe ternary operator
                 alu_result = isolated_cmp_flag ? (src_a - src_b) : src_a;         
             end
             
             OP_MULT: begin 
                 mult_start = 1'b1; 
-                alu_result = sel_hi ? mult_product[511:256] : mult_product[255:0];
+                if (mod_p_en) begin
+                    // Point Math: Route through Pseudo Mersenne Reducer
+                    alu_result = mod_mult_result; 
+                end else begin
+                    // Barrett Math: Use sel_hi to grab raw halves
+                    alu_result = sel_hi ? mult_product[511:256] : mult_product[255:0];
+                end
             end
             
             OP_CMP: begin 
-                cmp_flag   = isolated_cmp_flag; // 1 if A >= B
+                // NOTE: mod_p_en has no effect here. Comparison behaves identically.
+                cmp_flag   = isolated_cmp_flag; 
                 alu_result = src_a; 
             end
             
@@ -59,10 +97,15 @@ module alu (
             end
 
             OP_SUB_RAW: begin 
-                sum_full   = {1'b0, src_a} - {1'b0, src_b};
-                alu_result = sum_full[255:0]; 
-                // Inverted so cmp_flag consistently means A >= B across all ops
-                cmp_flag   = ~sum_full[256]; 
+                sub_full = {1'b0, src_a} - {1'b0, src_b};
+                if (mod_p_en) begin
+                    // Field Subtraction (Safe Two's Complement Underflow Fix)
+                    alu_result = sub_full[256] ? (sub_full[255:0] - TWO_256_MINUS_P) : sub_full[255:0];
+                end else begin
+                    // Standard Wrap-around Subtraction (For Barrett)
+                    alu_result = sub_full[255:0]; 
+                    cmp_flag   = ~sub_full[256];
+                end
             end
 
             default: alu_result = 256'd0;
