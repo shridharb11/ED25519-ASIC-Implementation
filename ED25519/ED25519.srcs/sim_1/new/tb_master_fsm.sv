@@ -5,7 +5,7 @@ module tb_master_fsm;
     // --- Clocks and Resets ---
     logic clk = 0;
     logic rst_n = 0;
-    always #5 clk = ~clk; // 100MHz
+    always #5 clk = ~clk; // 100MHz (10ns period)
 
     // --- Top-Level Host Interface ---
     logic start_verify = 0;
@@ -20,7 +20,7 @@ module tb_master_fsm;
     logic [1:0]   w_data_sel;
     logic [255:0] w_datapath_read_data;
     
-    // External dummy wires
+    // External dummy wires (for future signature input)
     logic [255:0] ext_data_1 = '0;
     logic [255:0] ext_data_2 = '0;
     logic [255:0] otp_data   = '0;
@@ -54,112 +54,97 @@ module tb_master_fsm;
         .math_error (w_math_error)
     );
 
-    // Tap the register file's A port so the FSM can read 's' during the LOAD_S state
-    assign w_datapath_read_data = u_datapath.u_regs.A_out;
+    // THE CRITICAL FIX: Direct memory tap for the FSM scalar latch
+    assign w_datapath_read_data = u_datapath.u_regs.mem[25];
 
+    // --- Main Test Sequence ---
     initial begin
         int timeout_cycles = 0;
+        
+        // =========================================================
+        // 🎛️ USER CONFIGURATION ZONE
+        // =========================================================
+        // Change this scalar to test different multiples of G!
+        // (e.g., 256'd3, 256'd4, or a full 256-bit hex string)
+        logic [255:0] test_scalar = 256'h4fe94d9006f020a5a3c080d96827fffd3c010ac0f12e7a42cb33284f86837c30;
+        
+        $display("=================================================");
+        $display(" ED25519 Hardware Accelerator - Integration Test");
+        $display("=================================================");
+        $display("[HOST] Target Scalar (s) = %h", test_scalar);
 
-        $display("========================================");
-        $display(" Starting Master FSM Phase 2 Test");
-        $display("========================================");
-
-        // 1. Apply Reset
+        // =========================================================
+        // 1. HARDWARE RESET
+        // =========================================================
+        rst_n = 0;
         #20 rst_n = 1;
         @(posedge clk); #1;
 
         // =========================================================
-        // PRE-LOAD THE CONSTANTS (Acting as the RISC-V Host)
+        // 2. LOAD CRYPTOGRAPHIC CONSTANTS
         // =========================================================
-        $display("[HOST] Loading Cryptographic Constants...");
+        // Base Point G
+        u_datapath.u_regs.mem[4]  = 256'h216936d3cd6e53fec0a4e231fdd6dc5c692cc7609525a7b2c9562d608f25d51a; // Gx
+        u_datapath.u_regs.mem[5]  = 256'h6666666666666666666666666666666666666666666666666666666666666658; // Gy
+        u_datapath.u_regs.mem[6]  = 256'h0000000000000000000000000000000000000000000000000000000000000001; // Gz
+        u_datapath.u_regs.mem[7]  = 256'h67875f0fd78b766566ea4e8e64abe37d20f09f80775152f56dde8ab3a5b7dda3; // Gt
         
-        // 1. Base Point G into REG[4:7]
-        u_datapath.u_regs.mem[4] = 256'h216936d3cd6e53fec0a4e231fdd6dc5c692cc7609525a7b2c9562d608f25d51a;
-        u_datapath.u_regs.mem[5] = 256'h6666666666666666666666666666666666666666666666666666666666666658;
-        u_datapath.u_regs.mem[6] = 256'h0000000000000000000000000000000000000000000000000000000000000001;
-        u_datapath.u_regs.mem[7] = 256'h67875f0fd78b766566ea4e8e64abe37d20f09f80775152f56dde8ab3a5b7dda3;
+        // Curve Constant 2d
+        u_datapath.u_regs.mem[15] = 256'h2406d9dc56dffce7198e80f2eef3d13000e0149a8283b156ebd69b9426b2f159; 
         
-        // 2. The 2d Curve Constant into REG[15]
-        u_datapath.u_regs.mem[15] = 256'h2406d9dc56dffce7198e80f2eef3d13000e0149a8283b156ebd69b9426b2f159;
+        // Neutral Point (0, 1, 1, 0)
+        u_datapath.u_regs.mem[26] = 256'd0; // Neut X
+        u_datapath.u_regs.mem[27] = 256'd1; // Neut Y
+        u_datapath.u_regs.mem[28] = 256'd1; // Neut Z
+        u_datapath.u_regs.mem[29] = 256'd0; // Neut T
 
-        // 3. The Neutral Point (0, 1, 1, 0) into REG[26:29]
-        u_datapath.u_regs.mem[26] = 256'h0000000000000000000000000000000000000000000000000000000000000000;
-        u_datapath.u_regs.mem[27] = 256'h0000000000000000000000000000000000000000000000000000000000000001;
-        u_datapath.u_regs.mem[28] = 256'h0000000000000000000000000000000000000000000000000000000000000001;
-        u_datapath.u_regs.mem[29] = 256'h0000000000000000000000000000000000000000000000000000000000000000;
+        // Load the User Scalar
+        u_datapath.u_regs.mem[25] = test_scalar; 
 
-        // 4. Load the target scalar 's' into REG[25]
-        // Setting to 2. This means P1 = 2 * G
-        u_datapath.u_regs.mem[25] = 256'h0000000000000000000000000000000000000000000000000000000000000002;
+        @(posedge clk); #1;
 
         // =========================================================
-        // START THE FSM
+        // 3. START POINT MULTIPLICATION
         // =========================================================
-        $display("[HOST] Asserting start_verify...");
+        $display("[HOST] Constants loaded. Asserting start_verify...");
         start_verify = 1;
-        @(posedge clk); #1; 
+        @(posedge clk); #1;
         start_verify = 0;
 
-        $display("[TEST] Master FSM is calculating P1 = s * G. Please wait... (Expected ~40,000 cycles)");
+        $display("[TEST] Computing P1 = s * G. Please wait...");
 
-        // Wait for the Master FSM to finish all 256 iterations
+        // =========================================================
+        // 4. WAIT FOR COMPLETION
+        // =========================================================
         while (!verify_done) begin
             @(posedge clk);
             timeout_cycles++;
             
-            // 256 doublings * ~120 cycles + 1 addition * ~200 cycles = roughly 31,000 cycles.
-            // Safety timeout set to 50,000.
-            if (timeout_cycles > 75000) begin
-                $display("[FATAL] Master FSM Timeout! Something got stuck.");
+            // Timeout set to 150k to allow for massive scalars (worst-case ~130k cycles)
+            if (timeout_cycles > 150000) begin 
+                $display("\n[FATAL] Simulation Timeout at %0d cycles!", timeout_cycles);
+                $display("  FSM State = %0d", u_fsm.state);
+                $display("  Seq ID    = %0b", w_seq_id);
                 $finish;
             end
         end
 
-        // After verify_done, before $finish — add these diagnostic prints:
-        $display("\n=== DIAGNOSTIC DUMP ===");
-
-        // 1. Did INIT_NEUTRAL actually write the neutral point?
-        $display("REG[0] (should be 0): %h", u_datapath.u_regs.mem[0]);
-        $display("REG[1] (should be 1): %h", u_datapath.u_regs.mem[1]);
-        $display("REG[2] (should be 1): %h", u_datapath.u_regs.mem[2]);
-        $display("REG[3] (should be 0): %h", u_datapath.u_regs.mem[3]);
-
-        // 2. Did the scalar latch correctly in the FSM?
-        $display("FSM scalar_reg (should be 2): %h", u_fsm.scalar_reg);
-
-        // 3. Check scratch registers — did any multiply ever produce a valid result?
-        $display("REG[8]  (scratch A): %h", u_datapath.u_regs.mem[8]);
-        $display("REG[9]  (scratch B): %h", u_datapath.u_regs.mem[9]);
-
-        // 4. Are the neutral point source registers intact?
-        $display("REG[26] (neutral X=0): %h", u_datapath.u_regs.mem[26]);
-        $display("REG[27] (neutral Y=1): %h", u_datapath.u_regs.mem[27]);
-
-        // 5. Is G still in REG[4:7]?
-        $display("REG[4]  (Gx): %h", u_datapath.u_regs.mem[4]);
-        $display("REG[5]  (Gy): %h", u_datapath.u_regs.mem[5]);
-
-        // 6. Is s still in REG[25]?
-        $display("REG[25] (s=2): %h", u_datapath.u_regs.mem[25]);
-
-        // 7. Final accumulator state
-        $display("REG[0:3] final accumulator:");
-        $display("  X: %h", u_datapath.u_regs.mem[0]);
-        $display("  Y: %h", u_datapath.u_regs.mem[1]);
-        $display("  Z: %h", u_datapath.u_regs.mem[2]);
-        $display("  T: %h", u_datapath.u_regs.mem[3]);
-
-        @(posedge clk); #1;
-
-        $display("========================================");
-        $display("[SUCCESS] Phase 2 Finished in %0d clock cycles!", timeout_cycles);
-        $display("========================================");
+        // =========================================================
+        // 5. REPORT RESULTS
+        // =========================================================
+        $display("\n=================================================");
+        $display("[SUCCESS] Computation Finished in %0d cycles!", timeout_cycles);
+        $display("=================================================");
         
-        $display("Final P1 Coordinates (Stored in REG[17:20]):");
-        $display("P1_X = %h", u_datapath.u_regs.mem[17]);
-        $display("P1_Y = %h", u_datapath.u_regs.mem[18]);
-        $display("P1_Z = %h", u_datapath.u_regs.mem[19]);
-        $display("P1_T = %h", u_datapath.u_regs.mem[20]);
+        $display("Final Projective Coordinates (P1):");
+        $display("  P1_X (REG[17]) = %h", u_datapath.u_regs.mem[17]);
+        $display("  P1_Y (REG[18]) = %h", u_datapath.u_regs.mem[18]);
+        $display("  P1_Z (REG[19]) = %h", u_datapath.u_regs.mem[19]);
+        $display("  P1_T (REG[20]) = %h", u_datapath.u_regs.mem[20]);
+        
+        $display("\n[HOST] To verify against Python Reference:");
+        $display("  run: to_affine(P1_X, P1_Y, P1_Z)");
+        $display("=================================================\n");
 
         $finish;
     end

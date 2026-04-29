@@ -95,7 +95,7 @@ module micro_sequencer (
     
     // Notice: sub_step is NO LONGER in this block. No combinational loops!
     logic [2:0] rom_alu_op;    
-
+    
     always_comb begin
         // Defaults to prevent latches
         a_sel = '0; b_sel = '0; dest_sel = '0; sel_hi = '0;
@@ -104,7 +104,8 @@ module micro_sequencer (
         rom_panic        = 1'b0;
         mod_p_en         = 1'b0;        
         rom_use_cmp_flag = 1'b0;
-        
+
+                
         if (seq_id == 3'b001) begin // BARRETT SEQUENCE
             case (step_counter)
                 // UPDATE THESE TO DRIVE rom_alu_op INSTEAD OF alu_op

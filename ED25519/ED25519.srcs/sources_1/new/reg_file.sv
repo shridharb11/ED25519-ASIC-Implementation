@@ -49,18 +49,20 @@ module reg_file #(
     
     //storage 
     logic [WIDTH-1:0] mem[0:DEPTH-1];
-    
+
+      
     always_ff @(posedge clk) begin
         if (wr_enable)
             mem[wr_addr] <= data_in;
     end
     
     // Read Port A (Asynchronous / Combinational)
+
     // If writing to the same address we are reading, forward the new data (write-through)
-    assign A_out = (wr_enable && wr_addr == A_select) ? data_in : mem[A_select];
+    assign A_out = mem[A_select];
 
     // Read Port B (Asynchronous / Combinational)
-    assign B_out = (wr_enable && wr_addr == B_select) ? data_in : mem[B_select];
+    assign B_out = mem[B_select];
     
 
        

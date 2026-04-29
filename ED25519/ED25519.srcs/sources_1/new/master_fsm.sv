@@ -44,13 +44,30 @@ module master_fsm (
     assign current_msb = scalar_reg[255]; // Always look at the top bit
 
     // --- Sequential Logic (State, Shift, Counter) ---
+    logic start_seq_reg;
+    assign start_seq = start_seq_reg;
+
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state       <= ST_IDLE;
+            start_seq_reg <= 1'b0;
             bit_counter <= 8'd255;
             scalar_reg  <= 256'd0;
         end else begin
             state <= next_state;
+
+            // Pulse start_seq_reg for exactly 1 cycle when entering a new active state
+            if ((next_state != state) && (
+                next_state == ST_LOAD_S    ||
+                next_state == ST_INIT_S2   ||
+                next_state == ST_S2_DOUBLE ||
+                next_state == ST_S2_ADD    ||
+                next_state == ST_S2_SAVE_P1
+            )) begin
+                start_seq_reg <= 1'b1;
+            end else begin
+                start_seq_reg <= 1'b0;
+            end
             
             // Latch the scalar 's' when the datapath exposes it
             if (state == ST_LOAD_S && seq_done) begin
@@ -65,16 +82,17 @@ module master_fsm (
         end
     end
 
+    
     // --- Combinational Logic (Next State & Outputs) ---
     always_comb begin
         // Defaults
-        next_state  = state;
-        start_seq   = 1'b0;
+        next_state  = state;        
         seq_id      = 3'b000;
         data_sel    = 2'b00;
         verify_done = 1'b0;
         signature_valid = 1'b0;
 
+        
         case (state)
             ST_IDLE: begin
                 if (start_verify) next_state = ST_LOAD_S;
@@ -82,16 +100,14 @@ module master_fsm (
             
             // 1. EXTRACT 's'
             ST_LOAD_S: begin
-                seq_id = 3'b101; 
-                start_seq = !seq_done; // FIX: Glitch protection
+                seq_id = 3'b101;                  
                 if (seq_done) next_state = ST_INIT_S2;
             end
 
                         
             // 3. INITIALIZE NEUTRAL POINT
             ST_INIT_S2: begin
-                seq_id = 3'b111; 
-                start_seq = !seq_done;
+                seq_id = 3'b111;                 
                 if (seq_done) next_state = ST_S2_DOUBLE;
             end
 
@@ -99,8 +115,7 @@ module master_fsm (
             // STEP 2: LOOP (P1 = s * G)
             // ==========================================
             ST_S2_DOUBLE: begin
-                seq_id = 3'b010; 
-                start_seq = !seq_done; // FIX: Glitch protection
+                seq_id = 3'b010;                 
                 if (seq_done) next_state = ST_S2_CHECK_BIT;
             end
             
@@ -110,8 +125,7 @@ module master_fsm (
             end
             
             ST_S2_ADD: begin
-                seq_id = 3'b011; 
-                start_seq = !seq_done; // FIX: Glitch protection
+                seq_id = 3'b011;                 
                 if (seq_done) next_state = ST_S2_SHIFT;
             end
             
@@ -125,8 +139,7 @@ module master_fsm (
             // SAVE RESULT AND FINISH
             // ==========================================
             ST_S2_SAVE_P1: begin
-                seq_id = 3'b110; 
-                start_seq = !seq_done;
+                seq_id = 3'b110;                 
                 if (seq_done) next_state = ST_DONE; 
             end
 

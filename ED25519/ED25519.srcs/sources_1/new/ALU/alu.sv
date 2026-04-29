@@ -49,13 +49,15 @@ module alu (
         OP_SUB_RAW = 3'b101  
     } alu_op_t;
 
+    
     always_comb begin
         alu_result = 256'd0;
         sum_full   = 257'd0;
         sub_full   = 257'd0;
         cmp_flag   = 1'b0;
         mult_start = 1'b0;
-        
+
+                
         case (alu_op)
             OP_ADD: begin 
                 sum_full = {1'b0, src_a} + {1'b0, src_b};
