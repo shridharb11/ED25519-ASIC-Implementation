@@ -25,7 +25,9 @@ module alu_top (
         .sel_hi       (sel_hi),
         .mod_p_en     (mod_p_en),
         .alu_result   (alu_result),
-        .cmp_flag     (cmp_flag)
+        .cmp_flag     (cmp_flag),
+        .mult_start   ()
+        
     );
 
         

@@ -7,20 +7,20 @@ module barrett_core (
     // NEW: External Data Inputs (Driven by Testbench or Master FSM)
     input  logic [255:0] ext_data_1, 
     input  logic [255:0] ext_data_2, 
-    input  logic [255:0] otp_data,   
+    input  logic [255:0] otp_data,
+    input  logic [1:0]   data_sel,
     
     output logic         seq_done,
     output logic         math_error
 );
 
     // --- Internal Traces (Wires) ---
-    logic [3:0]   a_sel, b_sel, dest_sel;
+    logic [4:0]   a_sel, b_sel, dest_sel;
     logic         reg_we, sel_hi, cmp_flag, mult_done;
     logic [2:0]   alu_op;
     logic [255:0] src_a, src_b, alu_result;
     logic         mult_kick;
-    logic         mod_p_en; 
-    logic [1:0]   data_sel;      // NEW: Wire from Sequencer to Mux
+    logic         mod_p_en;     
     logic [255:0] reg_write_data; // NEW: Output of the MUX
 
     // 1. The Brain
@@ -40,8 +40,7 @@ module barrett_core (
         .alu_op     (alu_op),
         .mult_kick  (mult_kick),
         .sel_hi     (sel_hi),
-        .mod_p_en   (mod_p_en),
-        .data_sel   (data_sel) // Wire up the new selector
+        .mod_p_en   (mod_p_en)        
     );
 
     // --- THE DATA SELECTION MULTIPLEXER ---

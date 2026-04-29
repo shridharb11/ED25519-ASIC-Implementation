@@ -8,30 +8,26 @@
 //              - No output registers (async read means zero read latency)
 //              - Active low async assert, sync deassert reset             
 //
-// Register Map:
-//   REG[0]  = X_acc        (accumulator X coordinate)
-//   REG[1]  = Y_acc        (accumulator Y coordinate)
-//   REG[2]  = Z_acc        (accumulator Z coordinate)
-//   REG[3]  = T_acc        (accumulator T coordinate)
-//   REG[4]  = X_operand    (second point X)
-//   REG[5]  = Y_operand    (second point Y)
-//   REG[6]  = Z_operand    (second point Z)
-//   REG[7]  = T_operand    (second point T)
-//   REG[8]  = temp_A       (ALU temporary A)
-//   REG[9]  = temp_B       (ALU temporary B)
-//   REG[10] = temp_C       (ALU temporary C)
-//   REG[11] = temp_H       (ALU temporary H)
-//   REG[12] = scalar       (s or h scalar value)
-//   REG[13] = constant_d   (ED25519 curve constant d - loaded from ROM)
-//   REG[14] = SQRT_M1      (sqrt(-1) mod p   - loaded from ROM)
-//   REG[15] = scratch      (general purpose / result staging)
+// DISCIPLINED REGISTER MAP:
+// --- Active Execution Zone (0-15) ---
+//   REG[0:3]   = Accumulator (X, Y, Z, T)   -> Actively mutating during loops
+//   REG[4:7]   = Operand (X, Y, Z, T)       -> Actively read during Additions
+//   REG[8:14]  = ALU Scratchpads (A-H)      -> Violently overwritten every cycle
+//   REG[15]    = Constant 2d                -> Locked read-only during Point Math
+//
+// --- Persistent Storage Zone (16-31) ---
+//   REG[16]    = Final Scalar (h)      -> Stored here post-Barrett
+//   REG[17:20] = Final P1 (X, Y, Z, T)      -> Safely parked after Step 2
+//   REG[21:24] = Final P2 (X, Y, Z, T)      -> Safely parked after Step 3
+//   REG[25]    = s
+//   REG[26:31] = RESERVED / UNUSED          -> Left empty deliberately
 //
 // We can always change the register mapping. There was also an idea of storing those constants in a ROM.
 // =============================================================================
 
 module reg_file #(
     parameter WIDTH = 256,
-    parameter DEPTH = 16,
+    parameter DEPTH = 32,
     parameter ADDR_W = $clog2(DEPTH)
 )(
     input logic clk,
