@@ -114,7 +114,7 @@ module master_fsm (
             state <= next_state;
 
             // CLEAN LATCH: Safely grabs the ALU comparator result when sequence finishes
-            if (seq_done) cmp_eq_latch <= cmp_eq;
+            //if (seq_done) cmp_eq_latch <= cmp_eq;
             
             // Latch Final Verification Flags
             if (state == ST_S5_VERIFY_X && seq_done) x_eq_flag <= cmp_eq;
@@ -221,7 +221,7 @@ module master_fsm (
             ST_S3_FUDGE_CHECK: begin
                 seq_id = 5'd14; 
                 if (seq_done) begin
-                    if (cmp_eq_latch) next_state = ST_S3_FIX_SIGN;
+                    if (cmp_eq) next_state = ST_S3_FIX_SIGN;
                     else              next_state = ST_S3_FUDGE_MULT;
                 end
             end
