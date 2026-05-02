@@ -22,7 +22,8 @@ module micro_sequencer (
     typedef enum logic [2:0] { S_IDLE, S_START, S_WAIT_DROP, S_EXE, S_WRITE } sub_step_t;
     sub_step_t sub_step;
     logic [5:0] step_counter; 
-
+    logic [2:0] rom_alu_op;
+    
     // --- Internal Wires & Registers ---
     logic rom_is_last_step;    
     logic seq_done_reg;    
@@ -75,8 +76,7 @@ module micro_sequencer (
             endcase
         end
     end
-
-    logic [2:0] rom_alu_op;    
+    
     
     always_comb begin
         a_sel = '0; b_sel = '0; dest_sel = '0; sel_hi = '0;
