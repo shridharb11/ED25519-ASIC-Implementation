@@ -9,6 +9,9 @@ module top_ed25519 (
     input  logic [255:0] otp_data,
     input  logic [1:0]   data_sel,
     
+    input  logic         ext_we,
+    input  logic [4:0]   ext_dest_sel,
+    
     // Verification Verdict
     output logic         verify_done,    
     output logic         signature_valid
@@ -25,7 +28,12 @@ module top_ed25519 (
     
     // Floating x_sign wire (used internally between alu_top and the conditional logic)
     logic         x_sign; 
+    logic final_we;
+    logic [4:0] final_dest_sel;
 
+    // Allow host to write only when FSM is IDLE
+    assign final_we = (u_fsm.state == 6'd0) ? ext_we : reg_we; 
+    assign final_dest_sel = (u_fsm.state == 6'd0) ? ext_dest_sel : dest_sel;
     // --- The Master Orchestrator ---
     master_fsm u_fsm (
         .clk                (clk),
@@ -73,8 +81,8 @@ module top_ed25519 (
     // --- The Dual-Port Register File ---
     reg_file u_regs (
         .clk        (clk),        
-        .wr_enable  (reg_we),
-        .wr_addr    (dest_sel),
+        .wr_enable  (final_we),
+        .wr_addr    (final_dest_sel),
         .data_in    (reg_write_data), 
         .A_select   (a_sel),
         .A_out      (src_a),

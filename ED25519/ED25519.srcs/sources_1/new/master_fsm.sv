@@ -222,6 +222,7 @@ module master_fsm (
                 seq_id = 5'd14; 
                 if (seq_done) begin
                     if (cmp_eq) next_state = ST_S3_FIX_SIGN;
+                    if (cmp_eq) next_state = ST_S3_FIX_SIGN;
                     else              next_state = ST_S3_FUDGE_MULT;
                 end
             end
