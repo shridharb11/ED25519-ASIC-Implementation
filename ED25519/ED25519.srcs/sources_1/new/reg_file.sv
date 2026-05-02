@@ -1,37 +1,89 @@
-// =============================================================================
-// Module:      reg_file.sv
-// Project:     ED25519 Hardware Accelerator
-// Description: 16 x 256-bit Register File
-//              - Asynchronous (combinational) read ports with write-through forwarding
-//              - Single write port, dual read port
-//              - No reset on storage array (SRAM compatible)
-//              - No output registers (async read means zero read latency)
-//              - Active low async assert, sync deassert reset             
-//
-// DISCIPLINED REGISTER MAP:
-// --- Active Execution Zone (0-15) ---
-//   REG[0:3]   = Accumulator (X, Y, Z, T)   -> Actively mutating during loops
-//   REG[4:7]   = Operand (X, Y, Z, T)       -> Actively read during Additions
-//   REG[8:14]  = ALU Scratchpads (A-H)      -> Violently overwritten every cycle
-//   REG[15]    = Constant 2d                -> Locked read-only during Point Math
-//
-// --- Persistent Storage Zone (16-31) ---
-//   REG[16]    = Final Scalar (h)      -> Stored here post-Barrett
-//   REG[17:20] = Final P1 (X, Y, Z, T)      -> Safely parked after Step 2
-//   REG[21:24] = Final P2 (X, Y, Z, T)      -> Safely parked after Step 3
-//   REG[25]    = s
-//   REG[26:31] = RESERVED / UNUSED          -> Left empty deliberately
-//
-// We can always change the register mapping. There was also an idea of storing those constants in a ROM.
-// =============================================================================
+/* =============================================================================       
+ DISCIPLINED REGISTER MAP:
+
+ --- Persistent Storage Zone (24-31) ---
+   REG[24]    = Constant 0
+   REG[25]    = Constant 1
+   REG[26]    = Constant d
+   REG[27]    = Constant 2d
+   REG[28]    = constant root i
+   REG[29:31] = G (X,Y,Z)         
+
+
+ --- Active Execution Zone (0-23) ---
+
+    STAGE 1 (Barrett Reduction)
+
+   REG[0:3]   = Accumulator (X, Y, Z, T)   -> Actively mutating during loops
+   REG[4:7]   = Operand (X, Y, Z, T)       -> Actively read during Additions
+   REG[8]     = Hash_low    //Can be overwritten once used
+   REG[9]     = Hash_hi     //Can be overwritten once used
+   REG[10]    = mu_hi       //Can be overwritten once used
+   REG[11]    = q           //Can be overwritten once used
+   REG[12]    = mu_lo       //Can be overwritten once used
+   REG[13:15] = Free for calc
+   REG[16]    = Datascalar h   
+   REG[17-19] = P1 storage (s * G)
+   REG[20]    = R compressed
+   REG[21]    = pubKey compressed
+   REG[22]    = Empty for now
+   REG[23]    = s
+
+   Final thing ends with h in REG[16], REG[8:15] can be overwritten
+
+
+   STAGE 2 (P1 = s*G)
+
+   REG[0:3]   = Accumulator (X, Y, Z, T)   -> Actively mutating during loops
+   REG[4:7]   = Operand (X, Y, Z, T)       -> Actively read during Additions
+   REG[8:15]  = ALU Scratchpads (A-H)      -> Violently overwritten every cycle
+   REG[16]    = Datascalar h   
+   REG[17:19] = P1 storage (s * G)
+   REG[20]    = R compressed
+   REG[21]    = pubKey compressed
+   REG[22]    = Empty for now
+   REG[23]    = s
+
+   Ends with P1 in REG[17:19], REG[4:7] and REG[23] can be used for other purposes
+
+   STAGE 3a (h*pubKey)
+
+   REG[0:3]   = Accumulator (X, Y, Z, T)   -> Actively mutating during loops
+   REG[4:7]   = Decompressed pubKey
+   REG[8:15]  = ALU Scratchpads (A-H)      -> Violently overwritten every cycle
+   REG[16]    = Datascalar h   
+   REG[17:19] = P1 storage (s * G)
+   REG[20]    = R compressed
+   REG[21]    = pubKey compressed
+   REG[22]    = Empty for now
+   REG[23]    = s
+
+   Decompress pubkey from the previous step to REG[4:7], 
+   Once the math is done, store h*pubKey in REG[4:7] itself or in the REG[8:15] Scratchpads
+
+   STAGE 3b (R + stage 3a)
+
+   REG[0:3]   = Accumulator (X, Y, Z, T)   -> Actively mutating during loops
+   REG[4:7]   = h*pubKey
+   REG[8:15]  = ALU Scratchpads (A-H)      -> Violently overwritten every cycle
+   REG[16]    = Datascalar h   
+   REG[17:19] = P1 storage (s * G)
+   REG[20]    = R compressed
+   REG[21]    = pubKey compressed
+   REG[22]    = Empty for now
+   REG[23]    = s
+
+   Decompress R to [20:23], do the final math.
+
+ We can always change the register mapping. 
+ ============================================================================= */
 
 module reg_file #(
     parameter WIDTH = 256,
     parameter DEPTH = 32,
     parameter ADDR_W = $clog2(DEPTH)
 )(
-    input logic clk,
-    input logic rst_n,
+    input logic clk,  
     
     //Write
     input logic wr_enable,
@@ -49,21 +101,14 @@ module reg_file #(
     
     //storage 
     logic [WIDTH-1:0] mem[0:DEPTH-1];
-
       
     always_ff @(posedge clk) begin
         if (wr_enable)
             mem[wr_addr] <= data_in;
-    end
-    
-    // Read Port A (Asynchronous / Combinational)
-
-    // If writing to the same address we are reading, forward the new data (write-through)
-    assign A_out = mem[A_select];
-
-    // Read Port B (Asynchronous / Combinational)
+    end    
+      
+    assign A_out = mem[A_select];    
     assign B_out = mem[B_select];
     
-
        
 endmodule

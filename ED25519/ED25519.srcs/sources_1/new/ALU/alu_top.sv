@@ -10,11 +10,15 @@ module alu_top (
     
     output logic [255:0] alu_result,
     output logic         cmp_flag,
-    output logic         mult_done
+    output logic         cmp_eq,
+    output logic         mult_done,
+    output logic         x_sign
 );
+    localparam logic [2:0] OP_LOAD_COMPRESSED = 3'b110;
 
     // Internal routing wires
     logic [511:0] mult_product;
+    logic         alu_sign_out;
 
     // --- The Combinational Math Engine ---
     alu u_comb_alu (
@@ -24,12 +28,25 @@ module alu_top (
         .alu_op       (alu_op),
         .sel_hi       (sel_hi),
         .mod_p_en     (mod_p_en),
+        .target_sign  (x_sign),
         .alu_result   (alu_result),
         .cmp_flag     (cmp_flag),
-        .mult_start   ()
+        .cmp_eq       (cmp_eq),
+        .sign_bit_out (alu_sign_out)     
+        
         
     );
 
+    // --- The Sign Bit Status Register ---
+    // <-- NEW: Dedicated flip-flop to hold the sign bit across multiple cycles
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            x_sign <= 1'b0;
+        end else if (alu_op == OP_LOAD_COMPRESSED) begin
+            // Only update the flip-flop when the FSM explicitly commands a Load
+            x_sign <= alu_sign_out;
+        end
+    end
         
     
     // --- The 18-Cycle Iterative Multiplier ---

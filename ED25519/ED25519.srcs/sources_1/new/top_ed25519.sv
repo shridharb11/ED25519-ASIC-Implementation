@@ -1,29 +1,46 @@
-module barrett_core (
+module top_ed25519 (
     input  logic         clk,
     input  logic         rst_n,
-    input  logic         start_seq,
-    input  logic [3:0]   seq_id, 
+    input  logic         start_verify,
     
-    // NEW: External Data Inputs (Driven by Testbench or Master FSM)
+    // External Data Inputs (Driven by Testbench or Host CPU)
     input  logic [255:0] ext_data_1, 
     input  logic [255:0] ext_data_2, 
     input  logic [255:0] otp_data,
     input  logic [1:0]   data_sel,
     
-    output logic         seq_done,    
-    output logic         cmp_eq
+    // Verification Verdict
+    output logic         verify_done,    
+    output logic         signature_valid
 );
 
     // --- Internal Traces (Wires) ---
-    logic [4:0]   a_sel, b_sel, dest_sel;
-    logic         reg_we, sel_hi, cmp_flag, mult_done;
+    logic [4:0]   a_sel, b_sel, dest_sel, seq_id;
+    logic         start_seq, reg_we, sel_hi, cmp_flag, cmp_eq, mult_done, seq_done;
     logic [2:0]   alu_op;
     logic [255:0] src_a, src_b, alu_result;
     logic         mult_kick;
     logic         mod_p_en;     
-    logic [255:0] reg_write_data; // NEW: Output of the MUX
+    logic [255:0] reg_write_data; 
+    
+    // Floating x_sign wire (used internally between alu_top and the conditional logic)
+    logic         x_sign; 
 
-    // 1. The Brain
+    // --- The Master Orchestrator ---
+    master_fsm u_fsm (
+        .clk                (clk),
+        .rst_n              (rst_n),
+        .start_verify       (start_verify),
+        .verify_done        (verify_done),
+        .signature_valid    (signature_valid),
+        .start_seq          (start_seq),
+        .seq_id             (seq_id),
+        .seq_done           (seq_done),
+        .datapath_read_data (src_a),   // Tapped directly off RegFile Port A
+        .cmp_eq             (cmp_eq)
+    );
+
+    // --- The Micro-Code Sequencer ---
     micro_sequencer u_seq (
         .clk        (clk),
         .rst_n      (rst_n),
@@ -42,30 +59,30 @@ module barrett_core (
         .mod_p_en   (mod_p_en)        
     );
 
-    // --- THE DATA SELECTION MULTIPLEXER ---
+    // --- Data Selection Multiplexer ---
     always_comb begin
         case (data_sel)
             2'b00: reg_write_data = alu_result;
-            2'b01: reg_write_data = ext_data_1; // e.g., SHA Lower 256 bits
-            2'b10: reg_write_data = ext_data_2; // e.g., SHA Upper 256 bits
-            2'b11: reg_write_data = otp_data;   // e.g., Base Point Coordinates
+            2'b01: reg_write_data = ext_data_1; 
+            2'b10: reg_write_data = ext_data_2; 
+            2'b11: reg_write_data = otp_data;   
             default: reg_write_data = alu_result;
         endcase
     end
 
-    // 2. The Memory
+    // --- The Dual-Port Register File ---
     reg_file u_regs (
         .clk        (clk),        
         .wr_enable  (reg_we),
         .wr_addr    (dest_sel),
-        .data_in    (reg_write_data), // Drive with MUX output, not raw ALU
+        .data_in    (reg_write_data), 
         .A_select   (a_sel),
         .A_out      (src_a),
         .B_select   (b_sel),
         .B_out      (src_b)
     );
 
-    // 3. The Muscle
+    // --- The 256-Bit Datapath / Math Engine ---
     alu_top u_alu (
         .clk        (clk),
         .rst_n      (rst_n),
@@ -78,7 +95,8 @@ module barrett_core (
         .cmp_flag   (cmp_flag),
         .cmp_eq     (cmp_eq),
         .mult_done  (mult_done),
-        .mult_kick  (mult_kick)
+        .mult_kick  (mult_kick),
+        .x_sign     (x_sign)     
     );
 
 endmodule
