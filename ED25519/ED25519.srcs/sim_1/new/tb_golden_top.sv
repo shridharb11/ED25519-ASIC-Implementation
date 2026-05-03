@@ -88,38 +88,33 @@ module tb_golden_top;
     localparam logic [255:0] G_T =
         256'h67875f0fd78b766566ea4e8e64abe37d20f09f80775152f56dde8ab3a5b7dda3;
 
-    // --- Barrett reduction constants (mod L, the curve order) ---
-    localparam logic [255:0] BARRETT_MU_HI =
-        256'h0ffffffffffffffffffffffffffffffec6ef5bf4737dcf70d6ec31748d98951d;
+    // --- Barrett reduction constants (mod L) ---
+    localparam logic [255:0] BARRETT_MU_HI = 
+        256'h000000000000000000000000000000000000000000000000000000000000000f;
 
-    localparam logic [255:0] CURVE_ORDER_L =
+    localparam logic [255:0] CURVE_ORDER_L = 
         256'h1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed;
 
-    localparam logic [255:0] BARRETT_MU_LO =
-        256'hd2b4594f849272b4adc88c7954be9e34a4d883a9a8b11fdbbf26dafbe2b11a40;
+    localparam logic [255:0] BARRETT_MU_LO = 
+        256'hffffffffffffffffffffffffffffffeb2106215d086329a7ed9ce5a30a2c131b;
 
-    // --- TV3 test vector inputs ---
+    // --- Endian-Corrected SystemVerilog Constants ---
     localparam logic [255:0] TV3_PUB_KEY =
-        256'h65aca07edafd4c58ad156f5ab8c47add5f1a6036339133e160edfa654087b234;
+        256'h34b2874065faed60e133913336601a5fdd7ac4b85a6f15ad584cfdda7ea0ac65;
 
     localparam logic [255:0] TV3_SIG_R =
-        256'h2a06b3b03e37ffce5b5f688a4e42d562f7ea59f804e6f443b5a0821a14defa68;
+        256'h68fade141a82a0b543f4e604f859eaf762d5424e8a685f5bceff373eb0b3062a;
 
     localparam logic [255:0] TV3_SIG_S =
-        256'he0c52a27f59fd2fd971c5d4ac97da751d2b28568f1169ec8cee73616f1e2ac0c;
+        256'h0cace2f11636e7cec89e16f16885b2d251a77dc94a5d1c97fdd29ff5272ac5e0;
 
-    // SHA-512( R || A || M ) split into lo-256 and hi-256 (little-endian integer)
-    // Full 512-bit hash:
-    //   2b923230ddff5b8afc30db54fadc2ea54671cc40b76855f09eb620718f97a112
-    //   8b2283f771ce4fc7f28b755e103040dc20fe324f910c72ebdf5e52bba7901ae1
-    //
-    // lo = hash[255:0]   = bits  0..255
-    // hi = hash[511:256] = bits 256..511
+    // HASH_LO is the reversed FIRST 32 bytes of the SHA-512 digest
     localparam logic [255:0] HASH_LO =
-        256'h8b2283f771ce4fc7f28b755e103040dc20fe324f910c72ebdf5e52bba7901ae1;
+        256'h12a1978f7120b69ef05568b740cc7146a52edcfa54db30fc8a5bffdd3032922b;
 
+    // HASH_HI is the reversed LAST 32 bytes of the SHA-512 digest
     localparam logic [255:0] HASH_HI =
-        256'h2b923230ddff5b8afc30db54fadc2ea54671cc40b76855f09eb620718f97a112;
+        256'he11a90a7bb525edfeb720c914f32fe20dc4030105e758bf2c74fce71f783228b;
 
     // -------------------------------------------------------------------------
     // Timeout watchdog
