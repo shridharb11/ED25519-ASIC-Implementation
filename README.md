@@ -1,16 +1,16 @@
 # ED25519-ASIC-Implementation
 
 ## Project Overview
-This repository contains a high-performance, area-optimized hardware accelerator for Ed25519 digital signature verification[cite: 2]. Targeted for integration into resource-constrained environments like 65nm RISC-V IoT SoCs, the core provides complete hardware offloading for the complex elliptic curve cryptography (ECC) and hashing operations required to authenticate signatures. 
+This repository contains a high-performance, area-optimized hardware accelerator for Ed25519 digital signature verification. Targeted for integration into resource-constrained environments like 65nm RISC-V IoT SoCs, the core provides complete hardware offloading for the complex elliptic curve cryptography (ECC) and hashing operations required to authenticate signatures. 
 
 ## Architecture & Key Features
-To balance silicon footprint and computational throughput, the design relies on a shared-resource datapath orchestrated by a dual-level control scheme[cite: 2]. 
+To balance silicon footprint and computational throughput, the design relies on a shared-resource datapath orchestrated by a dual-level control scheme. 
 
-*   **Microcoded Control Logic**: The execution flow is governed by a two-tier finite state machine[cite: 2]. The `master_fsm` handles macro-level ECC operations (such as point decompression, scalar multiplication, and the final $P_1 == P_2$ authentication check)[cite: 2]. It interfaces with a ROM-driven `micro_sequencer` that issues atomic, cycle-by-cycle routing commands to the datapath[cite: 2].
-*   **Area-Optimized Datapath**: Features a custom 256-bit ALU paired with a heavily optimized, 18-cycle iterative 64x64 schoolbook multiplier that generates 512-bit products[cite: 2].
-*   **Fast Field Arithmetic**: Modulo arithmetic for the Ed25519 prime ($p=2^{255}-19$) is drastically accelerated using a dedicated, purely combinatorial Pseudo-Mersenne reducer[cite: 2]. The micro-sequencer also natively executes Barrett reductions when required[cite: 2].
-*   **Integrated SHA-512 Engine**: Includes a self-contained SHA-512 hardware core with a dedicated message scheduler and an automated preprocessor to handle message padding and the $h = H(R \parallel A \parallel M)$ digest generation[cite: 2].
-*   **Disciplined Memory Management**: Operates on a strict 32-word $\times$ 256-bit register map[cite: 2]. Memory is highly structured into persistent storage zones for constants and base points, alongside volatile active execution scratchpads that are aggressively overwritten during loops to minimize register overhead[cite: 2].
+*   **Microcoded Control Logic**: The execution flow is governed by a two-tier finite state machine. The `master_fsm` handles macro-level ECC operations (such as point decompression, scalar multiplication, and the final $P_1 == P_2$ authentication check). It interfaces with a ROM-driven `micro_sequencer` that issues atomic, cycle-by-cycle routing commands to the datapath.
+*   **Area-Optimized Datapath**: Features a custom 256-bit ALU paired with a heavily optimized, 18-cycle iterative 64x64 schoolbook multiplier that generates 512-bit products.
+*   **Fast Field Arithmetic**: Modulo arithmetic for the Ed25519 prime ($p=2^{255}-19$) is drastically accelerated using a dedicated, purely combinatorial Pseudo-Mersenne reducer. The micro-sequencer also natively executes Barrett reductions when required.
+*   **Integrated SHA-512 Engine**: Includes a self-contained SHA-512 hardware core with a dedicated message scheduler and an automated preprocessor to handle message padding and the $h = H(R \parallel A \parallel M)$ digest generation.
+*   **Disciplined Memory Management**: Operates on a strict 32-word $\times$ 256-bit register map. Memory is highly structured into persistent storage zones for constants and base points, alongside volatile active execution scratchpads that are aggressively overwritten during loops to minimize register overhead.
 
 ---
 
